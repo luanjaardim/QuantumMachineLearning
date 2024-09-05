@@ -10,16 +10,11 @@ labels = dataset.target
 # Find the best representant of each class
 # Find the Non-Trivial class by comparing the best representant with the ones of the others classes
 
-print(data.shape)
-print(labels.shape)
-
 # Creating a dict that have an empty list to every label
 samples_by_class = dict(map(lambda x: (x, []), list(range(10))))
 
 for sample, label in zip(data, labels):
     samples_by_class[label].append(sample)
-
-print(len(samples_by_class[0]))
 
 euc_dist = lambda sample1, sample2: sum((sample1-sample2)**2) ** 0.5
 
