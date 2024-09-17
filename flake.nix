@@ -27,13 +27,15 @@
         py.scikit-learn
 
         # Any other package that my be needed in the shell can be added here too
-        pkgs.hello
       ];
 
       venvDir = "./.env"; # Path to the python envirotment
 
       # As the shellHook is used to activate the Python Enviroment we enter our shell after it
-      postShellHook = "nu # Run nushell at the start of the dev shell";
+      postShellHook = "
+        SHELL=$(which nu)
+        exec $SHELL
+      ";
 
     };
 
