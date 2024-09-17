@@ -20,6 +20,16 @@ possible_gates = [ # Without the I
         (qml.X, 1),
 ]
 
+def import_database():
+    from sklearn import datasets
+    from sklearn.model_selection import train_test_split
+    dataset = datasets.load_digits()
+    samples = dataset.data
+    labels = dataset.target
+
+    return train_test_split(samples, labels, test_size=test_size, train_size=train_size, random_state=state)
+
+
 class Gate:
     def __init__(self, gate, wires) -> None:
         # Check if the port has the correct quantity of wires
