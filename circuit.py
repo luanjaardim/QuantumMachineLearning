@@ -12,6 +12,9 @@ def generate_params(num_layers = 2, embedding_type = 'amplitude', prob_put_gate=
             'max_num_gates' : num_layers * prob_put_gate * num_qubits[embedding_type],
     }
 
+def generate_weights(params):
+    return torch.rand((params['num_qubits'], params['num_layers']), requires_grad=True)
+
 def create_model(params):
     import random
     model = []

@@ -30,6 +30,8 @@
       ];
 
       venvDir = "./.env"; # Path to the python envirotment
+      # To work with pytorch
+      LD_LIBRARY_PATH = "${pkgs.stdenv.cc.cc.lib}/lib";
 
       # As the shellHook is used to activate the Python Enviroment we enter our shell after it
       postShellHook = "
