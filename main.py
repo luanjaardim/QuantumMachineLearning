@@ -9,16 +9,18 @@ np.random.seed(state)
 # qml.AngleEmbedding
 # qml.AmplitudeEmbedding
 
-X_train, X_test, y_train, y_test = import_database()
-
 params = generate_params()
+
+X_train, X_test, y_train, y_test = import_database(params['embedding'])
+
 c = QuantumCircuit(params)
 
 drawer = qml.draw(c.circuit)
 
-# From where in the fucking hell comes this 3
-weights_init = 0.01 * np.random.randn(params['num_layers'], params['num_qubits'], 3, requires_grad=True)
+# 1 is the maximum any of our gates can receive as parameters, some others can receive more.
+weights_init = generate_weights(params)
 bias_init = np.array(0.0, requires_grad=True)
+print(drawer(weights_init, X_train))
 
 def cost(weights, bias, X, Y):
     predictions = [c.variational_classifier(weights, bias, x) for x in X]

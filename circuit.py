@@ -13,16 +13,16 @@ def generate_params(num_layers = 2, embedding_type = 'amplitude', prob_put_gate=
     }
 
 def generate_weights(params):
-    return np.random.rand(params['num_qubits'], params['num_layers'])
+    return np.random.randn(params['num_layers'], params['num_qubits'], 1, requires_grad=True)
 
 def create_model(params):
     import random
     model = []
     numbers = list(range(params['num_qubits']))
-    for q in range(params['num_qubits']):
+    for _ in range(params['num_layers']):
         model.append([])
-        for _ in range(params['num_layers']):
-            if random.random() > params['prob_put_gate']:
+        for q in range(params['num_qubits']):
+            if random.random() < params['prob_put_gate']:
                 gate, num_wires = random.choice(possible_gates)
                 if num_wires == 1:
                     wires = [q]
@@ -39,21 +39,24 @@ class QuantumCircuit:
     # TODO: Change params to vary the circuit to be executed
     def __init__(self, params) -> None:
         self.params = params
+        # Create out device
+        dev = qml.device("default.qubit", wires=self.params['num_qubits'])
         # AngleEmbedding encodes N features into n qubits
         # AmplitudeEmbedding encodes 2^n features into n qubits
         # for our dataset the image has 64 pixels, our features,
         # so 64 qubits for 'angle' and 6 for 'amplitude'
-        dev = qml.device("default.qubit", wires=self.params['num_qubits'])
+        from functools import partial
+        self.embedding = partial(qml.AmplitudeEmbedding, normalize=True) if self.params['embedding'] == 'amplitude' else qml.AngleEmbedding
         self.model = create_model(self.params)
         self.circuit = qml.qnode(dev, interface="autograd")(self.__circuit)
 
     def layer(self, w, layer):
-        for gate in range(self.params['num_layers']):
+        for gate in range(self.params['num_qubits']):
             if self.model[layer][gate] is not None:
-                self.model[layer][gate].gate(w[layer][gate])
+                self.model[layer][gate].gate(w[layer])
 
     def __circuit(self, weights, f):
-        qml.AmplitudeEmbedding(features=f, wires=range(self.params['num_qubits']), normalize=True)
+        self.embedding(features=f, wires=range(self.params['num_qubits']))
 
         for i, layer_weights in enumerate(weights):
             self.layer(layer_weights, i)

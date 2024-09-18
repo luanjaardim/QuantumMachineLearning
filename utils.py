@@ -9,7 +9,7 @@ torch.random.manual_seed(state)
 
 non_trivial_class = 8
 num_qubits = {
-        'angle' : 64,
+        'angle' : 16, # The image was croped to qubits limitation, 64 qubits were needed
         'amplitude' : 6
 }
 train_size = 0.8
@@ -28,13 +28,17 @@ possible_gates = [ # Without the I
         (qml.X, 1),
 ]
 
-def import_database():
+def import_database(embedding):
     from sklearn import datasets
     from sklearn.model_selection import train_test_split
     import numpy as np
     dataset = datasets.load_digits()
     samples = dataset.data
     labels = np.array(list(map(lambda x: -1 if x != 8 else 1, dataset.target)))
+
+    if embedding == "angle":
+        samples = np.array(list(map(lambda m: m[2:6, 2:6].flatten(), dataset.images)))
+        print(samples.shape)
 
     return train_test_split(samples, labels, test_size=test_size, train_size=train_size, random_state=state)
 
