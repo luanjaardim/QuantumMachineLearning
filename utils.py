@@ -1,12 +1,10 @@
 import pennylane as qml
 import random
-import numpy as np
 import torch
 
 # Make a reproducible experiment
 state = 96
 random.seed(state)
-np.random.seed(state)
 torch.random.manual_seed(state)
 
 non_trivial_class = 8

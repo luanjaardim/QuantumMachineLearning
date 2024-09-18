@@ -13,7 +13,7 @@ def generate_params(num_layers = 2, embedding_type = 'amplitude', prob_put_gate=
     }
 
 def generate_weights(params):
-    return torch.rand((params['num_qubits'], params['num_layers']), requires_grad=True)
+    return np.random.rand(params['num_qubits'], params['num_layers'])
 
 def create_model(params):
     import random
@@ -47,16 +47,16 @@ class QuantumCircuit:
         self.model = create_model(self.params)
         self.circuit = qml.qnode(dev, interface="autograd")(self.__circuit)
 
-    def layers(self, w):
-        for layer in range(self.params['num_qubits']):
-            for gate in range(len(self.model[layer])):
-                if self.model[layer][gate] is not None:
-                    self.model[layer][gate].gate(w[layer][gate])
+    def layer(self, w, layer):
+        for gate in range(self.params['num_layers']):
+            if self.model[layer][gate] is not None:
+                self.model[layer][gate].gate(w[layer][gate])
 
     def __circuit(self, weights, f):
         qml.AmplitudeEmbedding(features=f, wires=range(self.params['num_qubits']), normalize=True)
 
-        self.layers(weights)
+        for i, layer_weights in enumerate(weights):
+            self.layer(layer_weights, i)
 
         return qml.expval(qml.PauliZ(0))
 

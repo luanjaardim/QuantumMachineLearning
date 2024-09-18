@@ -1,67 +1,63 @@
 import torch
 from circuit import QuantumCircuit, generate_params, generate_weights
 import pennylane as qml
-from pennylane.optimize import NesterovMomentumOptimizer
+from pennylane import numpy as np
 from utils import *
 from torch.utils.data import DataLoader, TensorDataset
-from functools import partial
+np.random.seed(state)
 
 # qml.AngleEmbedding
 # qml.AmplitudeEmbedding
 
 X_train, X_test, y_train, y_test = import_database()
 
-# Convert train data to PyTorch tensors
-X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
-y_train_tensor = torch.tensor(y_train, dtype=torch.long)
-
-# Convert test data to PyTorch tensors
-X_test_tensor = torch.tensor(X_test, dtype=torch.float32)
-y_test_tensor = torch.tensor(y_test, dtype=torch.long)
-
-# Create a TensorDataset
-train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
-test_dataset = TensorDataset(X_test_tensor, y_test_tensor)
-
-# Use DataLoader to create batches
-batch_size = 16
-train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
-test_loader = DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=True)
-
 params = generate_params()
 c = QuantumCircuit(params)
 
 drawer = qml.draw(c.circuit)
 
-w = generate_weights(params)
-b = torch.tensor(0.0, requires_grad=True)
-# print(w)
-# print(drawer(w, X_train[0]))
-# print(c.variational_classifier(w, b, X_train[0]))
+# From where in the fucking hell comes this 3
+weights_init = 0.01 * np.random.randn(params['num_layers'], params['num_qubits'], 3, requires_grad=True)
+bias_init = np.array(0.0, requires_grad=True)
 
-opt = qml.AdamOptimizer(0.01)
+def cost(weights, bias, X, Y):
+    predictions = [c.variational_classifier(weights, bias, x) for x in X]
+    return square_loss(Y, predictions)
 
-def cost(weights, bias, samples, labels):
-    predictions = [c.variational_classifier(weights, bias, s) for s in samples]
-    sum = 0
-    for i, x in enumerate(predictions): sum += (labels[i] - x)**2
-    return sum / len(samples)
+def accuracy(labels, predictions):
+    acc = sum(abs(l - p) < 1e-5 for l, p in zip(labels, predictions))
+    acc = acc / len(labels)
+    return acc
 
+def square_loss(labels, predictions):
+    # We use a call to qml.math.stack to allow subtracting the arrays directly
+    return np.mean((labels - qml.math.stack(predictions)) ** 2)
 
-for samples, labels in train_loader:
+opt = qml.NesterovMomentumOptimizer(0.01)
 
-    print(c.variational_classifier(w, b, samples).shape)
-    print(labels.shape)
+batch_size = 5
 
-    cost_with_data = partial(cost, samples = samples, labels = labels)
+# train the variational classifier
+weights = weights_init
+bias = bias_init
+for it in range(60):
+    # Update the weights by one optimizer step
+    batch_index = np.random.randint(0, train_size * len(X_train), (batch_size,))
+    feats_train_batch = X_train[batch_index]
+    Y_train_batch = y_train[batch_index]
+    weights, bias, _, _ = opt.step(cost, weights, bias, feats_train_batch, Y_train_batch)
 
-    w, b = opt.step(cost_with_data, w, b)
+    # Compute predictions on train and validation set
+    predictions_train = np.sign(c.variational_classifier(weights, bias, X_train))
+    predictions_val = np.sign(c.variational_classifier(weights, bias, X_test))
 
-    acc = 0
-    for sam_test, res in test_loader:
-        acc += (np.sign(c.variational_classifier(w, b, sam_test)) == res).sum()
+    # Compute accuracy on train and validation set
+    acc_train = accuracy(y_train, predictions_train)
+    acc_val = accuracy(y_test, predictions_val)
 
-    print('Accuracy: ', acc)
-
-    # acc = sum([ (np.sign(c.variational_classifier(w, b, sam_test)) == res) for sam_test, res in test_loader ])
-    # print(acc)
+    if (it + 1) % 2 == 0:
+        _cost = cost(weights, bias, X_train, y_train)
+        print(
+            f"Iter: {it + 1:5d} | Cost: {_cost:0.7f} | "
+            f"Acc train: {acc_train:0.7f} | Acc validation: {acc_val:0.7f}"
+        )
