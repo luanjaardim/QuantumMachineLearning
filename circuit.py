@@ -3,17 +3,19 @@ from pennylane import numpy as np
 
 from utils import *
 
-def generate_params(num_layers = 2, embedding_type = 'amplitude', prob_put_gate=0.6):
+def generate_params(num_layers = 2, embedding_type = 'amplitude', prob_put_gate=0.6, sample_elim=True):
     return {
             'embedding'     : embedding_type, # angle or amplitude
             'prob_put_gate' : prob_put_gate, # the probability to choose some gate to put at the position
             'num_layers'    : num_layers,
             'num_qubits'    : num_qubits[embedding_type],
             'max_num_gates' : num_layers * prob_put_gate * num_qubits[embedding_type],
+            'sample_elim'   : True,
+            'epochs'        : 30,
     }
 
-def generate_weights(params):
-    return np.random.randn(params['num_layers'], params['num_qubits'], 1, requires_grad=True)
+def generate_weights(params, num=1):
+    return np.random.randn(num, params['num_layers'], params['num_qubits'], 1, requires_grad=True)
 
 def create_model(params):
     import random

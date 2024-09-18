@@ -28,19 +28,26 @@ possible_gates = [ # Without the I
         (qml.X, 1),
 ]
 
-def import_database(embedding):
+def import_database(params):
     from sklearn import datasets
     from sklearn.model_selection import train_test_split
     import numpy as np
     dataset = datasets.load_digits()
     samples = dataset.data
     labels = np.array(list(map(lambda x: -1 if x != 8 else 1, dataset.target)))
+    # Database decrease for improve learning of the non-trivial class
+    if params['sample_elim']:
+        limit_len = 400
+        indexes = [ i for i in range(len(labels)) if labels[i] == 1 ]
+        for i in range(len(labels)):
+            if i not in indexes: indexes.append(i)
+            if len(indexes) == limit_len: break
 
-    if embedding == "angle":
+    # AngleEmbedding
+    if params['embedding'] == "angle":
         samples = np.array(list(map(lambda m: m[2:6, 2:6].flatten(), dataset.images)))
-        print(samples.shape)
 
-    return train_test_split(samples, labels, test_size=test_size, train_size=train_size, random_state=state)
+    return train_test_split(samples[indexes], labels[indexes], test_size=test_size, train_size=train_size, random_state=state)
 
 class Gate:
     def __init__(self, gate, wires) -> None:
