@@ -3,32 +3,38 @@ import pennylane as qml
 from pennylane import numpy as np
 from utils import *
 from functools import partial
+import pygad
 np.random.seed(state)
-
-# qml.AngleEmbedding
-# qml.AmplitudeEmbedding
 
 params = generate_params()
 
 X_train, X_test, y_train, y_test = import_database(params)
 
-weights_init = generate_weights(params, num=5)
-bias_init = np.zeros(10, requires_grad=True)
+num = 1
+weights_init = generate_weights(params, num=num)
+bias_init = np.zeros(num, requires_grad=True)
 
-circuits = []
+def fit_func(ga_instance, solution, solution_idx):
+    model = encoded_matrix_to_model(solution.reshape((params['num_layers'], params['num_qubits'])))
+    return QuantumCircuit(params, model).train(weights_init, bias_init, X_train, X_test, y_train, y_test)
 
-for i in range(params['num_circuit']):
+initial_population = list(map(
+    lambda model: [ x for xs in model_to_encoded_matrix(model) for x in xs ],
+    [QuantumCircuit(params).model, QuantumCircuit(params).model, QuantumCircuit(params).model, QuantumCircuit(params).model]))
 
-    c = QuantumCircuit(params)
+ga = pygad.GA(
+        num_generations=params['num_generations'],
+        num_parents_mating=2,
+        fitness_func=fit_func,
+        num_genes= params['num_layers'] * params['num_qubits'],
+        sol_per_pop=4, # solutions per population
+        initial_population=initial_population,
+        mutation_percent_genes=5
+)
 
-    drawer = qml.draw(c.circuit)
+ga.run()
 
-    print(drawer(weights_init[0], X_train))
-    # TODO: return average accuracy of the circuit
-    avg_acc = c.train(weights_init, bias_init, X_train, X_test, y_train, y_test)
-    print('Circuit\'s average best accuracy: ', avg_acc)
-
-    circuits.append((c, avg_acc))
-
-# TODO: rank of trained circuits
-print(circuits)
+solution, solution_fitness, solution_idx = ga.best_solution()
+print(f"Parameters of the best solution : {solution}")
+print(f"Fitness value of the best solution = {solution_fitness}")
+print(f"Index of the best solution : {solution_idx}")

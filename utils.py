@@ -49,11 +49,49 @@ def import_database(params):
 
     return train_test_split(samples[indexes], labels[indexes], test_size=test_size, train_size=train_size, random_state=state)
 
+def encode_gate(g):
+    if g is None: return -1
+    # The maximum value for the index is 8, so we need 4 bits to encode each value
+    if len(g.wires) == 1: return (g.wires[0] << 4) | g.index
+    else: return (g.wires[1] << 8) | (g.wires[0] << 4) | g.index
+
+def decode_gate(v):
+    v_int = int(v)
+    if v_int == -1: return None # Identity gate
+
+    index = v_int & 0b1111
+    gate, num_wires = possible_gates[index]
+    start_ind = (v_int >> 4) & 0b1111
+    wires = [start_ind]
+    if num_wires == 2:
+        wires.append((v_int >> 8) & 0b1111)
+
+    return Gate(gate, wires, index)
+
+def model_to_encoded_matrix(model):
+    m = []
+    for line in model:
+        m.append([])
+        for gate in line:
+            m[-1].append(encode_gate(gate))
+    return m
+
+def encoded_matrix_to_model(m):
+    model = []
+    for line in m:
+        model.append([])
+        for i in line:
+            model[-1].append(decode_gate(i))
+    return model
+
 class Gate:
-    def __init__(self, gate, wires) -> None:
+    def __init__(self, gate, wires, index) -> None:
+        self.index = index # Gate position in possible_gates list
         # Check if the port has the correct quantity of wires
         if gate in [ qml.CRX, qml.CRY, qml.CRZ, qml.CNOT ]: assert(len(wires) == 2)
         else: assert(len(wires) == 1)
         self.wires = wires
         if gate not in [qml.X, qml.CNOT, qml.Hadamard]: self.gate = lambda x: gate(x, wires=self.wires)
         else: self.gate = lambda _: gate(wires=self.wires) # X gate, Hadamard and CNOT do not receive parameters
+    def __str__(self) -> str:
+        return f"[ ${self.gate.__name__} : {self.wires}]"
