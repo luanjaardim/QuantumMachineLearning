@@ -35,19 +35,41 @@ def import_database(params):
     dataset = datasets.load_digits()
     samples = dataset.data
     labels = np.array(list(map(lambda x: -1 if x != 8 else 1, dataset.target)))
+    indexes = [ i for i in range(len(labels)) if labels[i] == 1 ]
     # Database decrease for improve learning of the non-trivial class
     if params['sample_elim']:
         limit_len = 400
-        indexes = [ i for i in range(len(labels)) if labels[i] == 1 ]
         for i in range(len(labels)):
             if i not in indexes: indexes.append(i)
             if len(indexes) == limit_len: break
+    elif not params['sample_elim']:
+        to_mirror = dataset.images[indexes]
+        v_mirrored = np.array(list(map(lambda m: m[::-1], to_mirror)))
+        over_sampled = []
+        for i in range(len(to_mirror)):
+            over_sampled.extend([
+                    (to_mirror[i].reshape((64,)), 1),       # Original samples
+                    (v_mirrored[i].reshape((64,)), 1),       # Original samples mirrored vertically
+                    (np.array(list(map(lambda x: x[::-1], to_mirror[i]))).reshape((64,)), 1), # Original samples mirrored horizontally
+                    (np.array(list(map(lambda x: x[::-1], v_mirrored[i]))).reshape((64,)), 1), # Original samples mirrored both vertically and horizontally
+                ])
+        print(len(over_sampled))
+        print(over_sampled[0][0].shape)
+        limit_len = 700
+        not_non_trivial_indexes = [ i for i in range(len(labels)) if labels[i] != 1 ]
+        for i in range(len(not_non_trivial_indexes[:limit_len])):
+            over_sampled.append((dataset.data[i], -1))
+        samples, labels = map(lambda x: np.array(list(x)), list(zip(*over_sampled)))
 
     # AngleEmbedding
     if params['embedding'] == "angle":
         samples = np.array(list(map(lambda m: m[2:6, 2:6].flatten(), dataset.images)))
 
-    return train_test_split(samples[indexes], labels[indexes], test_size=test_size, train_size=train_size, random_state=state)
+    return train_test_split(samples[indexes] if params['sample_elim'] else samples,
+                            labels[indexes] if params['sample_elim'] else labels,
+                            test_size=test_size,
+                            train_size=train_size,
+                            random_state=state)
 
 def encode_gate(g):
     if g is None: return -1
@@ -59,12 +81,12 @@ def decode_gate(v):
     v_int = int(v)
     if v_int == -1: return None # Identity gate
 
-    index = v_int & 0b1111
+    index = (v_int & 0b1111) % len(possible_gates) # as a mutation can happen we need to ensure the index is valid
     gate, num_wires = possible_gates[index]
-    start_ind = (v_int >> 4) & 0b1111
+    start_ind = ((v_int >> 4) & 0b1111) % 6 # TODO: make this 6 generic
     wires = [start_ind]
     if num_wires == 2:
-        wires.append((v_int >> 8) & 0b1111)
+        wires.append(((v_int >> 8) & 0b1111) % 6) # TODO: make this 6 generic
 
     return Gate(gate, wires, index)
 

@@ -3,7 +3,7 @@ from pennylane import numpy as np
 
 from utils import *
 
-def generate_params(num_layers = 2, embedding_type = 'amplitude', prob_put_gate=0.6, sample_elim=True, num_generations=2):
+def generate_params(num_layers = 6, embedding_type = 'amplitude', prob_put_gate=0.6, sample_elim=True, num_generations=4):
     return {
             'embedding'      : embedding_type, # angle or amplitude
             'prob_put_gate'  : prob_put_gate, # the probability to choose some gate to put at the position
@@ -14,7 +14,8 @@ def generate_params(num_layers = 2, embedding_type = 'amplitude', prob_put_gate=
             'max_num_gates'  : num_layers * prob_put_gate * num_qubits[embedding_type],
             'sample_elim'    : sample_elim,
             'batch_size'     : 20,
-            'epochs'         : 15,
+            'patience'       : 10,
+            'epochs'         : 60,
     }
 
 def generate_weights(params, num=1):
@@ -88,9 +89,16 @@ class QuantumCircuit:
             # We use a call to qml.math.stack to allow subtracting the arrays directly
             return np.mean((labels - qml.math.stack(predictions)) ** 2)
 
-        opt = qml.NesterovMomentumOptimizer(0.01)
+        # Printing circuit model
+        drawer = qml.draw(self.circuit)
+        print(drawer(weights_init[0], X_train[0]))
+        print('Encoded matrix:')
+        print(model_to_encoded_matrix(self.model))
+
+        opt = qml.AdamOptimizer(0.1, eps=1e-5)
 
         batch_size = self.params['batch_size']
+        size_train = len(X_train)
 
         # train the variational classifier
         weights = weights_init
@@ -98,13 +106,16 @@ class QuantumCircuit:
         avg_acc = 0.0
         for w, b in zip(weights, bias):
             best_acc = -1
+            cnt = 0
             for it in range(self.params['epochs']):
-                # Update the weights by one optimizer step
-                batch_index = np.random.randint(0, train_size * len(X_train), (batch_size,))
-                feats_train_batch = X_train[batch_index]
-                Y_train_batch = y_train[batch_index]
+                for i in range(0, size_train, batch_size):
+                    end = i + batch_size
+                    # print(f"Batch [i: {i}, end: {end}]")
+                    feats_train_batch = X_train[i:(end if end < size_train else size_train)]
+                    Y_train_batch = y_train[i:(end if end < size_train else size_train)]
 
-                w, b, _, _ = opt.step(cost, w, b, feats_train_batch, Y_train_batch)
+                    # Update the weights by one optimizer step
+                    w, b, _, _ = opt.step(cost, w, b, feats_train_batch, Y_train_batch)
 
                 # Compute predictions on train and validation set
                 predictions_train = np.sign(self.variational_classifier(w, b, X_train))
@@ -116,6 +127,12 @@ class QuantumCircuit:
 
                 if best_acc < acc_val:
                     best_acc = acc_val
+                    cnt = 0
+                else:
+                    cnt += 1
+
+                if cnt > self.params['patience']:
+                    break
 
                 if (it + 1) % 2 == 0:
                     _cost = cost(w, b, X_train, y_train)
