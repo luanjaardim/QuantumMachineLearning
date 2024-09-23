@@ -48,11 +48,36 @@ ga = pygad.GA(
         sol_per_pop=4, # solutions per population
         initial_population=initial_population,
         mutation_percent_genes="default",
+        save_best_solutions=True
 )
 
 ga.run()
+small_circuit = 0
+best_circuit = 0
+max_id_gates = 0
+max_fitness = 0
+for i, (p, f) in enumerate(zip(ga.best_solutions, ga.best_solutions_fitness)):
+    print(i)
+    from functools import reduce
+    cnt = reduce(lambda acc, x: acc+1 if x == -1 else acc, p)
+    if cnt > max_id_gates:
+        max_id_gates = cnt
+        small_circuit = i
+    if f > max_fitness:
+        max_fitness = f
+        best_circuit = i
 
-solution, solution_fitness, solution_idx = ga.best_solution()
-print(f"Parameters of the best solution : {solution}")
-print(f"Fitness value of the best solution = {solution_fitness}")
-print(f"Index of the best solution : {solution_idx}")
+print("Best Solution, with smallest circuit: ")
+small_circuit_solution = ga.best_solutions[small_circuit]
+
+d = qml.draw(QuantumCircuit(params, encoded_matrix_to_model(small_circuit_solution.reshape((params['num_layers'], params['num_qubits'])))).circuit)
+print(d(weights_init[0], X_train[0]))
+print(f"Fitness of the small solution : {ga.best_solutions_fitness[small_circuit]}")
+print(f"Parameters of the small solution : {small_circuit_solution}")
+
+print("\n\nBest Solution: ")
+best_solution = ga.best_solutions[best_circuit]
+d = qml.draw(QuantumCircuit(params, encoded_matrix_to_model(best_solution.reshape((params['num_layers'], params['num_qubits'])))).circuit)
+print(d(weights_init[0], X_train[0]))
+print(f"Fitness of the best solution : {ga.best_solutions_fitness[best_circuit]}")
+print(f"Parameters of the best solution : {best_solution}")
